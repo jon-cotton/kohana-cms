@@ -9,20 +9,6 @@
 class Controller_Rpa_Cms extends Controller
 {
 	/**
-	 * @static STATIC_VIEW_PATH - the directory within the application's views
-	 * directory where the static views are located
-	 */
-	const STATIC_VIEW_PATH = 'static';
-	
-	const DEFAULT_PAGE_TITLE	= 'Welcome';
-	const TITLE_PREFIX			= '';
-	
-	private $page_titles_map = array(
-		//''				=> 'Home',
-		//'path/to/page'	=> 'Page Title'
-	);
-
-	/**
 	 * action_index - The default action, attempts to load the view at the path
 	 * specified by the view parameter in the URL
 	 *
@@ -31,12 +17,12 @@ class Controller_Rpa_Cms extends Controller
 	public function action_index()
 	{
 		// get the parameters from the request
-		$view_path = $this->request->param('view', NULL);
+		$content_path = $this->request->param('content', NULL);
 
 		// check if the view exists in the filesystem
 		try
 		{
-			$content = Cms::find_content_for_uri($view_path);
+			$content = Cms::find_content_for_uri($content_path);
 		}
 		catch(Cms_Exception_Notfound $e)
 		{
@@ -51,24 +37,15 @@ class Controller_Rpa_Cms extends Controller
 	{
 		$locale = $this->request->param('locale');
 		
-		Cookie::set('locale', $locale);
+		$available_locales = Cms::get_available_locales();
+		if(!in_array('_'.$locale, $available_locales))
+		{
+			// unknown locale
+			throw new HTTP_Exception_404;
+		}		
 		
+		Cookie::set('locale', $locale);
 		$this->request->redirect('/');
 	}		
 	
-	private function get_page_title()
-	{
-		$title = Arr::get($this->page_titles_map, $this->request->uri(), FALSE);
-		
-		if($title)
-		{
-			$title = self::TITLE_PREFIX.$title;
-		}
-		else
-		{
-			$title = self::DEFAULT_PAGE_TITLE;
-		}
-		
-		return $title;
-	}	
 }

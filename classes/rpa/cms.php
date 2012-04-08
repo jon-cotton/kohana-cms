@@ -2,7 +2,7 @@
 
 class Rpa_Cms
 {
-	public static $content_path = 'content';
+	public static $content_path = NULL;
 	
 	public static $locale = 'en-us';
 	
@@ -13,8 +13,10 @@ class Rpa_Cms
 	
 	public static function find_content_for_uri($uri, $locale = NULL)
 	{	
-		// TODO: move this to init
-		Cms::$content_path = APPPATH.Cms::$content_path;
+		if(Cms::$content_path === NULL)
+		{
+			throw new Kohana_Exception('Content path is not set');
+		}
 		
 		if($locale === NULL)
 		{
@@ -31,36 +33,15 @@ class Rpa_Cms
 			return Kohana::cache($content_cache_key);
 		}
 		
-		// no cache available so check that we have the locale path structure
-		if(empty(Cms::$_locale_paths))
-		{
-			if(Kohana::$caching === TRUE AND Kohana::cache('rpa.cms.locale_paths') !== NULL)
-			{
-				// get the locale paths from cache
-				Cms::$_locale_paths = Kohana::cache('rpa.cms.locale_paths');
-			}
-			else
-			{
-				// build the locale paths array from the filesystem (expensive)
-				$locale_paths = self::find_locale_paths(Cms::$content_path);
-				
-				if(Kohana::$caching === TRUE)
-				{
-					// cache the locale paths
-					Kohana::cache('rpa.cms.locale_paths', $locale_paths);
-				}
-				
-				Cms::$_locale_paths = $locale_paths;
-			}
-		}
-		
-		$locale_path = Arr::get(Cms::$_locale_paths, '_'.$locale);
+		// get the path to the locale
+		$locale_path = Arr::get(Cms::get_locale_paths(), '_'.$locale);
 		if($locale_path === NULL)
 		{
 			// locale not known
 			throw new Cms_Exception_Unknownlocale($locale);
 		}	
 		
+		// get the cascading content paths that make up this content
 		$content_paths = Cms::find_content_paths($locale_path, $uri);
 		if(count($content_paths) < 1)
 		{
@@ -83,6 +64,38 @@ class Rpa_Cms
 		}
 		
 		return $content;
+	}
+	
+	public static function get_locale_paths()
+	{
+		if(empty(Cms::$_locale_paths))
+		{
+			if(Kohana::$caching === TRUE AND Kohana::cache('rpa.cms.locale_paths') !== NULL)
+			{
+				// get the locale paths from cache
+				Cms::$_locale_paths = Kohana::cache('rpa.cms.locale_paths');
+			}
+			else
+			{
+				// build the locale paths array from the filesystem (expensive)
+				$locale_paths = self::find_locale_paths(Cms::$content_path);
+				
+				if(Kohana::$caching === TRUE)
+				{
+					// cache the locale paths
+					Kohana::cache('rpa.cms.locale_paths', $locale_paths);
+				}
+				
+				Cms::$_locale_paths = $locale_paths;
+			}
+		}
+		
+		return Cms::$_locale_paths;
+	}
+	
+	public static function get_available_locales()
+	{
+		return array_keys(self::get_locale_paths());
 	}		
 	
 	public static function find_locale_paths($path)
@@ -118,10 +131,10 @@ class Rpa_Cms
 		{
 			$content_paths[$locale] = $content_file_path.'.yml';
 		}
-		elseif(is_dir($content_file_path) AND file_exists($content_file_path.DIRECTORY_SEPERATOR.'index.yml'))
+		elseif(is_dir($content_file_path) AND file_exists($content_file_path.DIRECTORY_SEPARATOR.'index.yml'))
 		{
 			// path is a dir so serve up the index file
-			$content_paths[$locale] = $content_file_path.DIRECTORY_SEPERATOR.'index.yml';
+			$content_paths[$locale] = $content_file_path.DIRECTORY_SEPARATOR.'index.yml';
 		}	
 	
 		// check the parent locale

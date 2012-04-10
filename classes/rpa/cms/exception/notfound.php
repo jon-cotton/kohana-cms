@@ -1,6 +1,6 @@
 <?php
 
-class Rpa_Cms_Exception_Notfound extends Kohana_Exception
+class Rpa_Cms_Exception_Notfound extends Cms_Exception
 {
 	
 	public function __construct($locale, $uri)

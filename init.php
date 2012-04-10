@@ -13,8 +13,8 @@ if(!class_exists('Yaml'))
  * server (777 if you want to make it easy :)
  */
 $cms_config = Kohana::$config->load('cms');
-Cms::$default_content_path = Arr::path($cms_config, 'content_paths.default');
-Cms::$user_content_path = Arr::path($cms_config, 'content_paths.user');
+Cms_Content::$default_content_path = Arr::path($cms_config, 'content_paths.default');
+Cms_Content::$user_content_path = Arr::path($cms_config, 'content_paths.user');
 
 // route for the set-locale action for switching regions
 Route::set('cms_set_locale', 'set-locale/<locale>',

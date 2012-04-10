@@ -22,7 +22,7 @@ class Controller_Rpa_Cms extends Controller
 		// check if the view exists in the filesystem
 		try
 		{
-			$content = Cms::find_content_for_uri($content_path);
+			$content = Cms_Content::find_all_by_uri($content_path);
 		}
 		catch(Cms_Exception_Notfound $e)
 		{
@@ -37,7 +37,7 @@ class Controller_Rpa_Cms extends Controller
 	{
 		$locale = $this->request->param('locale');
 		
-		$available_locales = Cms::get_available_locales();
+		$available_locales = Cms_Content::get_available_locales();
 		if(!in_array('_'.$locale, $available_locales))
 		{
 			// unknown locale

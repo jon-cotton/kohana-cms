@@ -6,5 +6,10 @@ return array(
 		'user'		=> NULL
 	),
 	
-	'locale_cookie' => 'locale'
+	'locale_cookie' => 'locale',
+	
+	'defaults' => array(
+		'type'		=> 'text',
+		'editable'	=> FALSE
+	)
 );

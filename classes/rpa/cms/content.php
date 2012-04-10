@@ -49,11 +49,6 @@ abstract class Rpa_Cms_Content
 	 * @var boolean 
 	 */
 	protected $_editable = FALSE;
-	
-	/**
-	 * @var string 
-	 */
-	protected $_formo_driver = NULL;
 
 //==============================================================================	
 	
@@ -381,11 +376,6 @@ abstract class Rpa_Cms_Content
 					$this->_editable = (bool)$value;
 					break;
 				
-				// form widget (formo driver)
-				case 'widget':
-					$this->_formo_driver = $value;
-					break;
-				
 				// catch all, anything not specified above is added to the data
 				default:
 					$this->{$property} = $value;
@@ -503,15 +493,7 @@ abstract class Rpa_Cms_Content
 	{
 		return $this->_editable;
 	}
-	
-	/**
-	 * @return string 
-	 */
-	public function get_formo_driver()
-	{
-		return $this->_formo_driver;
-	}
-	
+
 	/**
 	 *
 	 * @return string 
@@ -550,8 +532,15 @@ abstract class Rpa_Cms_Content
 
 	/**
 	 * the toString must always be implemented so that you can directly
-	 * print/echo out the value of a content object 
+	 * print/echo out the value of a content object
+	 * 
+	 * @return string
 	 */
 	abstract public function __toString();
+	
+	/**
+	 * @return string 
+	 */
+	abstract public function get_formo_driver();
 	
 }

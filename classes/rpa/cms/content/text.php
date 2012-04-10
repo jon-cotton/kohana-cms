@@ -8,5 +8,10 @@ class Rpa_Cms_Content_Text extends Cms_Content
 	public function __toString()
 	{
 		echo $this->text;
-	}		
+	}
+	
+	public function get_formo_driver()
+	{
+		return 'text';
+	}
 }

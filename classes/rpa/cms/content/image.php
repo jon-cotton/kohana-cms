@@ -8,4 +8,9 @@ class Rpa_Cms_Content_Image extends Cms_Content
 	{
 		echo $this->url;
 	}
+	
+	public function get_formo_driver()
+	{
+		return 'file';
+	}
 }

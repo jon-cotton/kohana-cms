@@ -6,7 +6,7 @@ class Rpa_Cms_Content_Page extends Cms_Content
 	protected $_type = 'page';
 	
 	/**
-	 * @var int 
+	 * @var string 
 	 */
 	protected $view = NULL;
 	
@@ -19,5 +19,15 @@ class Rpa_Cms_Content_Page extends Cms_Content
 	{
 		return NULL;
 	}
-		
+	
+	public function get_view()
+	{
+		return $this->view;
+	}
+
+	public function set_view($view)
+	{
+		$this->view = $view;
+	}
+
 }

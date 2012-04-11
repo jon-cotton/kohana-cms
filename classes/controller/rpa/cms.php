@@ -18,7 +18,7 @@ class Controller_Rpa_Cms extends Controller
 	{
 		// get the parameters from the request
 		$content_path = $this->request->param('content', NULL);
-
+		
 		// check if the view exists in the filesystem
 		try
 		{
@@ -27,7 +27,7 @@ class Controller_Rpa_Cms extends Controller
 		catch(Cms_Exception_Notfound $e)
 		{
 			throw new HTTP_Exception_404;
-		}
+		}	
 		
 		print_r($content);
 		exit;

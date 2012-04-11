@@ -9,7 +9,8 @@ return array(
 	'locale_cookie' => 'locale',
 	
 	'defaults' => array(
-		'type'		=> 'text',
 		'editable'	=> FALSE
-	)
+	),
+	
+	'cache' => NULL
 );

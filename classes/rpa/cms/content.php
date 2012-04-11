@@ -2,6 +2,17 @@
 
 abstract class Rpa_Cms_Content
 {
+	/**
+	 * 
+	 */
+	const DEFAULT_CONTENT_TYPE = 'text';
+	
+	/**
+	 * 
+	 */
+	const DEFAULT_CONTENT_TYPE_FIELD = 'text';
+	
+//==============================================================================	
 	
 	/**
 	 * @var type 
@@ -17,6 +28,11 @@ abstract class Rpa_Cms_Content
 	 * @var type 
 	 */
 	public static $locale = 'en-us';
+	
+	/**
+	 * @var Cache 
+	 */
+	public static $cache = NULL;
 	
 	/**
 	 * @var  array   Language paths that are used to find content
@@ -69,46 +85,55 @@ abstract class Rpa_Cms_Content
 			$locale = Cms_Content::$locale;
 		}
 		
-		// get the content data from the uri as an array
-		$content_data = Cms_Content::find_content_data_by_uri($uri, $locale);
+		// set the key to be used to add/retrieve this content to/from the cache
+		$content_cache_key = 'rpa.cms.'.$locale.$uri;
 		
-		// instantiate the content objects from the content data
-		foreach($content_data as $identifier => $content)
+		if(Cms_Content::$cache instanceOf Cache AND Cms_Content::$cache->get($content_cache_key) !== NULL)
 		{
-			// wrap content in an array if it isn't an array already
-			if(!is_array($content))
+			// return the content from the cache
+			$content_objects = Cms_Content::$cache->get($content_cache_key);
+		}
+		else
+		{	
+			// no cache, so get the content data for the uri as an array
+			$content_data = Cms_Content::find_content_data_by_uri($uri, $locale);
+
+			// instantiate the content objects from the content data
+			foreach($content_data as $identifier => $content)
 			{
-				$content = array('text' => $content);
+				$type = Arr::get($content, 'type', 'text');
+				if(empty($type))
+				{
+					// each piece of content data must have a type property so that we know how to instantiate it
+					throw new Cms_Exception(
+						'content at :uri::identifier does not have a type',
+						array(':uri' => $uri, ':identifier' => $identifier)
+					);
+				}
+
+				// attempt to find the correct class based on the type property of the content
+				$class_name = 'Cms_Content_'.str_replace(' ', '_', ucwords(str_replace('_', ' ', $type)));
+				if(!class_exists($class_name))
+				{
+					// the class derived from the type property does not exist
+					throw new Cms_Exception(
+						'attempted to instantiate content of type :type but class :class_name does not exist',
+						array(':type' => $type, ':class_name' => $class_name)
+					);
+				}	
+
+				// instatiate a new content object
+				$content_object = new $class_name($content);
+				$content_object->set_uri($uri.':'.$identifier);
+
+				$content_objects[$identifier] = $content_object;
 			}
 			
-			$default_type = Kohana::$config->load('cms.defaults.type');
-			$type = Arr::get($content, 'type', $default_type);
-			if($type === NULL)
+			if(Cms_Content::$cache instanceOf Cache)
 			{
-				// each piece of content data must have a type property so that we know how to instantiate it
-				throw new Cms_Exception(
-					'content at :uri::identifier does not have a type',
-					array(':uri' => $uri, ':identifier' => $identifier)
-				);
-			}	
-			
-			// attempt to find the correct class based on the type property of the content
-			$class_name = 'Cms_Content_'.str_replace(' ', '_', ucwords(str_replace('_', ' ', $type)));
-			if(!class_exists($class_name))
-			{
-				// the class derived from the type property does not exist
-				throw new Cms_Exception(
-					'attempted to instantiate content of type :type but class :class_name does not exist',
-					array(':type' => $type, ':class_name' => $class_name)
-				);
-			}	
-			
-			// instatiate a new content object
-			$content_object = new $class_name($content);
-			$content_object->set_uri($uri.':'.$identifier);
-			$content_object->set_locale($locale);
-			
-			$content_objects[$identifier] = $content_object;
+				// cache the content
+				Cms_Content::$cache->set($content_cache_key, $content_objects);
+			}
 		}
 		
 		return $content_objects;
@@ -144,15 +169,16 @@ abstract class Rpa_Cms_Content
 	
 	/**
 	 *
-	 * @param type $uri
-	 * @param type $locale
-	 * @param type $use_cache
-	 * @return array
-	 * @throws Cms_Exception
-	 * @throws Cms_Exception_Unknownlocale
-	 * @throws Cms_Exception_Notfound 
+	 * @param	type	$uri
+	 * @param	type	$locale
+	 * @param	boolean $user_only
+	 * @param	boolean	$use_cache
+	 * @return	type
+	 * @throws	Cms_Exception
+	 * @throws	Cms_Exception_Unknownlocale
+	 * @throws	Cms_Exception_Notfound 
 	 */
-	public static function find_content_data_by_uri($uri, $locale, $use_cache = TRUE)
+	public static function find_content_data_by_uri($uri, $locale)
 	{
 		$content_data = array();
 		
@@ -161,57 +187,59 @@ abstract class Rpa_Cms_Content
 			throw new Cms_Exception('Content path is not set');
 		}
 
-		// set the key to be used to add/retrieve this content to/from the cache
-		$content_cache_key = 'rpa.cms.'.$locale.$uri;
-			
-		if(Kohana::$caching === TRUE AND $use_cache === TRUE AND Kohana::cache($content_cache_key) !== NULL)
+		// get the path to the locale
+		$locale_path = Cms_Content::get_path_for_locale($locale);
+		if($locale_path === NULL)
 		{
-			// return the content from the cache
-			$content_data = Kohana::cache($content_cache_key);
+			// locale not known
+			throw new Cms_Exception_Unknownlocale($locale);
+		}	
+
+		$root_paths = array(Cms_Content::$default_content_path);
+
+		if(Cms_Content::$user_content_path !== NULL)
+		{
+			// if a user content path is configured add it to the list of paths to be searched
+			$root_paths[] = Cms_Content::$user_content_path;
 		}
-		else
+
+		$content_paths = Cms_Content::find_content_paths($locale_path, $uri, $root_paths);
+
+		if(count($content_paths) < 1)
 		{
-			// no cache available
-			// get the path to the locale
-			$locale_path = Arr::get(Cms_Content::get_locale_paths(), '_'.$locale);
-			if($locale_path === NULL)
-			{
-				// locale not known
-				throw new Cms_Exception_Unknownlocale($locale);
-			}	
+			// content not found, this would usually be re-thrown as a 404
+			throw new Cms_Exception_Notfound($locale, $uri);
+		}
 
-			// get the cascading content paths that make up this content
-			$default_locale_path = Cms_Content::$default_content_path.DIRECTORY_SEPARATOR.$locale_path;
-			$content_paths = Cms_Content::find_content_paths($default_locale_path, $uri, Cms_Content::$default_content_path);
+		// now we have the content paths, load the content from the yml files
+		$yaml = Yaml::instance();
+		foreach($content_paths as $key => $content_path)
+		{	
+			$new_data = $yaml->parse_file($content_path);
 
-			// if the user content path is defined, check for user managed content
-			$user_content_paths = array();
-			if(Cms_Content::$user_content_path !== NULL)
-			{
-				$user_locale_path = Cms_Content::$user_content_path.DIRECTORY_SEPARATOR.$locale_path;
-				$user_content_paths = Cms_Content::find_content_paths($user_locale_path, $uri, Cms_Content::$user_content_path);
+			$key_parts = explode('~', $key);
+			$content_locale = $key_parts[1];
 
-				$content_paths = Arr::merge($content_paths, $user_content_paths);
-			}
-
-			if(count($content_paths) < 1)
-			{
-				// content not found
-				throw new Cms_Exception_Notfound($locale, $uri);
-			}
-
-			// now we have the content paths, load the content from the yml files
-			$yaml = Yaml::instance();
-			foreach($content_paths as $content_path)
+			foreach($new_data as $identifier => $content_part)
 			{	
-				$content_data = Arr::merge($yaml->parse_file($content_path), $content_data);
+				// wrap content in an array as text content if it isn't an array already
+				if(!is_array($content_part))
+				{
+					$new_data[$identifier] = array(
+						'type' => Cms_Content::DEFAULT_CONTENT_TYPE,
+						Cms_Content::DEFAULT_CONTENT_TYPE_FIELD => $content_part
+					);
+				}
+				
+				if(Arr::get($content_part, 'type') === NULL)
+				{
+					$new_data[$identifier]['type'] = Cms_Content::DEFAULT_CONTENT_TYPE;
+				}		
+				
+				$new_data[$identifier]['locale'] = $content_locale;
 			}
 
-			if(Kohana::$caching === TRUE AND $use_cache === TRUE)
-			{
-				// cache the content
-				Kohana::cache($content_cache_key, $content_data);
-			}
+			$content_data = Arr::merge($new_data, $content_data);
 		}
 		
 		return $content_data;
@@ -225,20 +253,20 @@ abstract class Rpa_Cms_Content
 	{
 		if(empty(Cms_Content::$_locale_paths))
 		{
-			if(Kohana::$caching === TRUE AND Kohana::cache('rpa.cms.locale_paths') !== NULL)
+			if(Cms_Content::$cache instanceOf Cache AND Cms_Content::$cache->get('rpa.cms.locale_paths') !== NULL)
 			{
 				// get the locale paths from cache
-				Cms_Content::$_locale_paths = Kohana::cache('rpa.cms.locale_paths');
+				Cms_Content::$_locale_paths = Cms_Content::$cache->get('rpa.cms.locale_paths');
 			}
 			else
 			{
 				// build the locale paths array from the filesystem (expensive)
 				$locale_paths = self::find_locale_paths(Cms_Content::$default_content_path);
 				
-				if(Kohana::$caching === TRUE)
+				if(Cms_Content::$cache instanceOf Cache)
 				{
 					// cache the locale paths
-					Kohana::cache('rpa.cms.locale_paths', $locale_paths);
+					Cms_Content::$cache->set('rpa.cms.locale_paths', $locale_paths);
 				}
 				
 				Cms_Content::$_locale_paths = $locale_paths;
@@ -247,6 +275,16 @@ abstract class Rpa_Cms_Content
 		
 		return Cms_Content::$_locale_paths;
 	}
+	
+	/**
+	 *
+	 * @param type $locale
+	 * @return type 
+	 */
+	public static function get_path_for_locale($locale)
+	{
+		return Arr::get(Cms_Content::get_locale_paths(), '_'.$locale);
+	}		
 	
 	/**
 	 *
@@ -299,28 +337,34 @@ abstract class Rpa_Cms_Content
 	 * @param type $uri
 	 * @return type 
 	 */
-	private static function find_content_paths($path, $uri, $root_path)
+	private static function find_content_paths($path, $uri, array $root_content_paths, $current_key = 0)
 	{
 		$content_paths = array();
-		$content_file_path = $path.DIRECTORY_SEPARATOR.$uri;
-		$locale = basename($path);
+		$content_path = $path.DIRECTORY_SEPARATOR.$uri;
+		$locale = str_replace('_', '', basename($path));
 		
-		if(file_exists($content_file_path.'.yml'))
-		{
-			$content_paths[$locale] = $content_file_path.'.yml';
-		}
-		elseif(is_dir($content_file_path) AND file_exists($content_file_path.DIRECTORY_SEPARATOR.'index.yml'))
+		foreach($root_content_paths as $root_content_path)
 		{	
-			// path is a dir so serve up the index file
-			$content_paths[$locale] = $content_file_path.DIRECTORY_SEPARATOR.'index.yml';
+			$full_content_path = $root_content_path.DIRECTORY_SEPARATOR.$content_path;
+			if(file_exists($full_content_path.'.yml'))
+			{
+				$content_paths[$current_key.'~'.$locale] = $full_content_path.'.yml';
+				$current_key++;
+			}
+			elseif(is_dir($full_content_path) AND file_exists($full_content_path.DIRECTORY_SEPARATOR.'index.yml'))
+			{	
+				// path is a dir so serve up the index file
+				$content_paths[$current_key.'~'.$locale] = $full_content_path.DIRECTORY_SEPARATOR.'index.yml';
+				$current_key++;
+			}
 		}
 
 		// check the parent locale
 		$parent_path = dirname($path);
-		if($parent_path != $root_path)
+		if($parent_path != '.')
 		{	
 			// the parent isn't the root content dir so check for content in the parent
-			$content_paths[] = Cms_Content::find_content_paths($parent_path, $uri, $root_path);
+			$content_paths[] = Cms_Content::find_content_paths($parent_path, $uri, $root_content_paths, $current_key);
 		}
 			
 		return Arr::flatten($content_paths);
@@ -350,7 +394,7 @@ abstract class Rpa_Cms_Content
 	 * @param	array $data 
 	 */
 	public function inflate(array $data)
-	{
+	{	
 		// load the defaults from the config and merge them with the incoming data
 		$defaults = Kohana::$config->load('cms.defaults');
 		$data = Arr::merge($defaults, $data);
@@ -368,12 +412,16 @@ abstract class Rpa_Cms_Content
 		
 		// iterate through the data elements and add the data to the relevant property
 		foreach($data as $property => $value)
-		{
+		{		
 			switch($property)
 			{
 				// editable flag
 				case 'editable':
 					$this->_editable = (bool)$value;
+					break;
+				
+				case 'locale':
+					$this->set_locale($value);
 					break;
 				
 				// catch all, anything not specified above is added to the data
@@ -432,31 +480,52 @@ abstract class Rpa_Cms_Content
 			throw new Cms_Exception('Attempted to save content object without specifying an identifier');
 		}
 		
-		// get the content data as an array
-		$content_data = Cms_Content::find_content_data_by_uri($path, NULL, FALSE);
-		
-		// add/overwrite the loaded data with the data from this object
-		$content_data[$identifier] = $this->as_array();
-
-		// get the correct locale path
-		$locale_path = Arr::get(Cms_Content::get_locale_paths(), '_'.$locale);
+		// get the correct path for this locale
+		$locale_path = Cms_Content::get_path_for_locale($locale);
 		if($locale_path === NULL)
 		{
 			// locale not known
 			throw new Cms_Exception_Unknownlocale($locale);
 		}
 		
-		// build the full path to the content file
-		$content_path = Cms_Content::$user_content_path.DIRECTORY_SEPARATOR.$locale_path.DIRECTORY_SEPARATOR.$path.'.yml';
+		// get the current user content data as an array
+		try
+		{
+			$content_path = Cms_Content::$user_content_path.DIRECTORY_SEPARATOR.$locale_path.DIRECTORY_SEPARATOR.$path;
+			
+			if(is_dir($content_path))
+			{
+				$content_path = $content_path.DIRECTORY_SEPARATOR.'index.yml';
+			}
+			else
+			{
+				$content_path = $content_path.'.yml';
+			}
+			
+			$yaml = Yaml::instance();
+			$content_data = $yaml->parse_file($content_path);
+		}
+		catch(Exception $e)
+		{
+			// content hasn't been found which means this is a new content file
+			$content_data = array();
+		}
+
+		// add/overwrite the loaded data with the data from this object
+		$content_data[$identifier] = $this->as_array();	
+
+		// make sure that all required dirs exists
+		@mkdir(dirname($content_path), 0777, TRUE);
 		
 		// persist to the correct yml file
 		$yaml = Yaml::instance();
-		$yaml->dump_file($content_path, $content_data);
+		$yaml->dump_file($content_path, $content_data, 2);
 		
-		if(Kohana::$caching === TRUE)
+		$content_cache_key = 'rpa.cms.'.Cms_Content::$locale.$path;
+		if(Cms_Content::$cache instanceOf Cache AND Cms_Content::$cache->get($content_cache_key))
 		{
-			// finally, overwrite any relevent cache files
-			Kohana::cache('rpa.cms.'.$locale.$path, $content_data);
+			// finally, remove any cache files
+			Cms_Content::$cache->delete_all();
 		}
 	}
 

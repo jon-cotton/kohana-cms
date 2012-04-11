@@ -22,15 +22,44 @@ class Controller_Rpa_Cms extends Controller
 		// check if the view exists in the filesystem
 		try
 		{
-			$content = Cms_Content::find_all_by_uri($content_path);
+			$contents = Cms_Content::find_all_by_uri($content_path);
 		}
 		catch(Cms_Exception_Notfound $e)
 		{
 			throw new HTTP_Exception_404;
-		}	
+		}
 		
-		print_r($content);
-		exit;
+		// default view path is just the content path
+		$view_path = $content_path;
+
+		// see if the content contains a page object, if so try and get the view path from there
+		$page = Arr::get($contents, 'page');
+		if($page instanceOf Cms_Content_Page AND !empty($page->view))
+		{
+			$view_path = $page->view;
+		}
+		
+		// check that the view exists
+		if(Kohana::find_file('views', $view_path) === FALSE)
+		{
+			// if the path is a dir, assume an index view
+			if(is_dir(APPPATH.'views'.DS.$view_path))
+			{
+				$view_path .= DS.'index';
+			}
+		}
+		
+		// set up the view
+		$view = View::factory($view_path);
+		
+		// add each piece of content as a variable within the view
+		foreach($contents as $key => &$value)
+		{	
+			$view->bind($key, $value);
+		}
+		
+		// render
+		echo $view->render();
 	}
 	
 	public function action_set_locale()

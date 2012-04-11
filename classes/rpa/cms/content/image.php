@@ -6,7 +6,7 @@ class Rpa_Cms_Content_Image extends Cms_Content
 	
 	public function __toString()
 	{
-		echo $this->url;
+		return $this->url;
 	}
 	
 	public function get_formo_driver()

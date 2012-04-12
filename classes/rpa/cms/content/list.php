@@ -42,7 +42,6 @@ class Rpa_Cms_Content_List extends Cms_Content implements IteratorAggregate
 	
 	public function inflate(array $data)
 	{
-		static $n = 0;
 		parent::inflate($data);
 		
 		foreach($this->items as &$item)
@@ -50,8 +49,6 @@ class Rpa_Cms_Content_List extends Cms_Content implements IteratorAggregate
 			$matches = array();
 			if(preg_match(Cms_Content::CONTENT_URI_REGEX, $item, $matches))
 			{
-				//if ($n == 0) print_r($matches[1]); exit;
-				$n++;
 				$item = Cms_Content::find_by_uri($matches[1], $this->locale);
 			}
 		}	

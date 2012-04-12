@@ -114,15 +114,27 @@ abstract class Rpa_Cms_Content
 
 				// instantiate the content objects from the content data
 				foreach($content_data as $identifier => $content)
-				{				
+				{	
 					$type = Arr::get($content, 'type');
 					if(empty($type))
 					{
-						// each piece of content data must have a type property so that we know how to instantiate it
-						throw new Cms_Exception(
-							'content at :uri::identifier does not have a type',
-							array(':uri' => $uri, ':identifier' => $identifier)
-						);
+						if(isset($content['value']))
+						{
+							// check to see if the content is a uri reference to other content
+							$matches = array();
+							if(preg_match(Cms_Content::CONTENT_URI_REGEX, $content['value'], $matches))
+							{
+								$content_objects[$identifier] = Cms_Content::find_by_uri($matches[1], $locale);
+								continue;
+							}
+							
+							// the actual value of the content is in the value element
+							$content[Cms_Content::DEFAULT_CONTENT_TYPE_FIELD] = $content['value'];
+							unset($content['value']);
+						}
+
+						// no type has been specified so use the default type
+						$content['type'] = $type = Cms_Content::DEFAULT_CONTENT_TYPE;
 					}
 
 					// attempt to find the correct class based on the type property of the content
@@ -238,31 +250,27 @@ abstract class Rpa_Cms_Content
 		$yaml = Yaml::instance();
 		foreach($content_paths as $key => $content_path)
 		{	
-			$new_data = $yaml->parse_file($content_path);
+			$yaml_data = $yaml->parse_file($content_path);
 
 			$key_parts = explode('~', $key);
 			$content_locale = $key_parts[1];
 
-			foreach($new_data as $identifier => $content_part)
+			foreach($yaml_data as &$content_part)
 			{	
-				// wrap content in an array as text content if it isn't an array already
+				// wrap content in an array if it isn't an array already
 				if(!is_array($content_part))
 				{
-					$new_data[$identifier] = array(
-						'type' => Cms_Content::DEFAULT_CONTENT_TYPE,
-						Cms_Content::DEFAULT_CONTENT_TYPE_FIELD => $content_part
+					$content_part = array(
+						'value'  => $content_part
 					);
-				}
+				}	
 				
-				if(Arr::get($content_part, 'type') === NULL)
-				{
-					$new_data[$identifier]['type'] = Cms_Content::DEFAULT_CONTENT_TYPE;
-				}		
-				
-				$new_data[$identifier]['locale'] = $content_locale;
+				// add the locale so we know which locale this content came from
+				$content_part['locale'] = $content_locale;
 			}
 
-			$content_data = Arr::merge($new_data, $content_data);
+			// merge the yaml data wih the existing content data
+			$content_data = Arr::merge($yaml_data, $content_data);
 		}
 		
 		return $content_data;

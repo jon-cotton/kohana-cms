@@ -12,6 +12,11 @@ abstract class Rpa_Cms_Content
 	 */
 	const DEFAULT_CONTENT_TYPE_FIELD = 'text';
 	
+	/**
+	 * 
+	 */
+	const CONTENT_URI_REGEX = '/cms:\/\/(.*:.*)/';
+	
 //==============================================================================	
 	
 	/**
@@ -38,6 +43,13 @@ abstract class Rpa_Cms_Content
 	 * @var  array   Language paths that are used to find content
 	 */
 	protected static $_locale_paths = array();
+	
+	/**
+	 * A hash table containing all of the content that has been loaded
+	 * @var type 
+	 */
+	protected static $_loaded_content = array();
+			
 
 //==============================================================================	
 	
@@ -77,65 +89,70 @@ abstract class Rpa_Cms_Content
 	 */
 	public static function find_all_by_uri($uri, $locale = NULL)
 	{
-		$content_objects = array();
-		
 		if($locale === NULL)
 		{
 			// no language has been supplied so get the current locale
 			$locale = Cms_Content::$locale;
 		}
 		
-		// set the key to be used to add/retrieve this content to/from the cache
-		$content_cache_key = 'rpa.cms.'.$locale.$uri;
+		$content_objects = Arr::path(Cms_Content::$_loaded_content, $locale.'.'.$uri, array());
 		
-		if(Cms_Content::$cache instanceOf Cache AND Cms_Content::$cache->get($content_cache_key) !== NULL)
-		{
-			// return the content from the cache
-			$content_objects = Cms_Content::$cache->get($content_cache_key);
-		}
-		else
+		if(count($content_objects) < 1)
 		{	
-			// no cache, so get the content data for the uri as an array
-			$content_data = Cms_Content::find_content_data_by_uri($uri, $locale);
+			// set the key to be used to add/retrieve this content to/from the cache
+			$content_cache_key = 'rpa.cms.'.$locale.$uri;
 
-			// instantiate the content objects from the content data
-			foreach($content_data as $identifier => $content)
+			if(Cms_Content::$cache instanceOf Cache AND Cms_Content::$cache->get($content_cache_key) !== NULL)
 			{
-				$type = Arr::get($content, 'type', 'text');
-				if(empty($type))
-				{
-					// each piece of content data must have a type property so that we know how to instantiate it
-					throw new Cms_Exception(
-						'content at :uri::identifier does not have a type',
-						array(':uri' => $uri, ':identifier' => $identifier)
-					);
+				// return the content from the cache
+				$content_objects = Cms_Content::$cache->get($content_cache_key);
+			}
+			else
+			{	
+				// no cache, so get the content data for the uri as an array
+				$content_data = Cms_Content::find_content_data_by_uri($uri, $locale);
+
+				// instantiate the content objects from the content data
+				foreach($content_data as $identifier => $content)
+				{				
+					$type = Arr::get($content, 'type');
+					if(empty($type))
+					{
+						// each piece of content data must have a type property so that we know how to instantiate it
+						throw new Cms_Exception(
+							'content at :uri::identifier does not have a type',
+							array(':uri' => $uri, ':identifier' => $identifier)
+						);
+					}
+
+					// attempt to find the correct class based on the type property of the content
+					$class_name = 'Cms_Content_'.str_replace(' ', '_', ucwords(str_replace('_', ' ', $type)));
+					if(!class_exists($class_name))
+					{
+						// the class derived from the type property does not exist
+						throw new Cms_Exception(
+							'attempted to instantiate content of type :type but class :class_name does not exist',
+							array(':type' => $type, ':class_name' => $class_name)
+						);
+					}	
+
+					// instatiate a new content object
+					Cms_Content::$_loaded_content[$locale][$uri][$identifier] = new $class_name($content);
+					$content_object = Cms_Content::$_loaded_content[$locale][$uri][$identifier];
+
+					$content_object->set_uri($uri.':'.$identifier);
+
+					$content_objects[$identifier] = $content_object;
 				}
 
-				// attempt to find the correct class based on the type property of the content
-				$class_name = 'Cms_Content_'.str_replace(' ', '_', ucwords(str_replace('_', ' ', $type)));
-				if(!class_exists($class_name))
+				if(Cms_Content::$cache instanceOf Cache)
 				{
-					// the class derived from the type property does not exist
-					throw new Cms_Exception(
-						'attempted to instantiate content of type :type but class :class_name does not exist',
-						array(':type' => $type, ':class_name' => $class_name)
-					);
-				}	
-
-				// instatiate a new content object
-				$content_object = new $class_name($content);
-				$content_object->set_uri($uri.':'.$identifier);
-
-				$content_objects[$identifier] = $content_object;
-			}
-			
-			if(Cms_Content::$cache instanceOf Cache)
-			{
-				// cache the content
-				Cms_Content::$cache->set($content_cache_key, $content_objects);
+					// cache the content
+					Cms_Content::$cache->set($content_cache_key, $content_objects);
+				}
 			}
 		}
-		
+
 		return $content_objects;
 	}
 	
@@ -144,15 +161,21 @@ abstract class Rpa_Cms_Content
 	 * @param type $uri
 	 * @return Cms_Content 
 	 */
-	public static function find_by_uri($uri)
+	public static function find_by_uri($uri, $locale = NULL)
 	{
+		if($locale === NULL)
+		{
+			// no language has been supplied so get the current locale
+			$locale = Cms_Content::$locale;
+		}
+		
 		// split the uri into path and identifier
 		$uri_parts = explode(':', $uri);
 		$path = Arr::get($uri_parts, 0);
 		$identifier = Arr::get($uri_parts, 1);
 		
 		$all_content = Cms_Content::find_all_by_uri($path);
-		
+
 		if($identifier !== NULL)
 		{
 			// return the piece of content specified by the identifier part of the uri
@@ -163,7 +186,7 @@ abstract class Rpa_Cms_Content
 			// identifier isn't specified so just return the first piece of content 
 			$content = reset($all_content);
 		}
-		
+	
 		return $content;
 	}
 	
@@ -368,7 +391,7 @@ abstract class Rpa_Cms_Content
 		}
 			
 		return Arr::flatten($content_paths);
-	}
+	}	
 
 //==============================================================================	
 	
@@ -400,7 +423,7 @@ abstract class Rpa_Cms_Content
 		$data = Arr::merge($defaults, $data);
 		
 		// check the type of the incoming data
-		$type = Arr::get($data, 'type');
+		$type = Arr::get($data, 'type', 'text');
 		if($this->_type != $type)
 		{
 			// types don't match
@@ -408,13 +431,16 @@ abstract class Rpa_Cms_Content
 				array(':type' => $type, ':selftype' => $this->_type)
 			);
 		}
-		unset($data['type']);
 		
 		// iterate through the data elements and add the data to the relevant property
 		foreach($data as $property => $value)
-		{		
+		{				
 			switch($property)
 			{
+				// type is read only
+				case 'type':
+					break;
+				
 				// editable flag
 				case 'editable':
 					$this->_editable = (bool)$value;
@@ -424,7 +450,7 @@ abstract class Rpa_Cms_Content
 					$this->set_locale($value);
 					break;
 				
-				// catch all, anything not specified above is added to the data
+				// catch all, anything not specified above is treated as a normal property
 				default:
 					$this->{$property} = $value;
 					break;

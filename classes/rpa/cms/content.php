@@ -61,7 +61,12 @@ abstract class Rpa_Cms_Content
 	/**
 	 * @var	string 
 	 */
-	protected $_uri = NULL;
+	protected $_path = NULL;
+	
+	/**
+	 * @var	string 
+	 */
+	protected $_identifier = NULL;
 	
 	/**
 	 * @var	string 
@@ -152,7 +157,8 @@ abstract class Rpa_Cms_Content
 					Cms_Content::$_loaded_content[$locale][$uri][$identifier] = new $class_name($content);
 					$content_object = Cms_Content::$_loaded_content[$locale][$uri][$identifier];
 
-					$content_object->set_uri($uri.':'.$identifier);
+					$content_object->set_path($uri);
+					$content_object->set_identifier($identifier);
 
 					$content_objects[$identifier] = $content_object;
 				}
@@ -596,6 +602,42 @@ abstract class Rpa_Cms_Content
 	{
 		return $this->_editable;
 	}
+	
+	/**
+	 *
+	 * @return string 
+	 */
+	public function get_path()
+	{
+		return $this->_path;
+	}
+
+	/**
+	 *
+	 * @param string 
+	 */
+	public function set_path($path)
+	{
+		$this->_path = $path;
+	}
+
+	/**
+	 *
+	 * @return string 
+	 */
+	public function get_identifier()
+	{
+		return $this->_identifier;
+	}
+
+	/**
+	 *
+	 * @param string 
+	 */
+	public function set_identifier($identifier)
+	{
+		$this->_identifier = $identifier;
+	}
 
 	/**
 	 *
@@ -603,16 +645,7 @@ abstract class Rpa_Cms_Content
 	 */
 	public function get_uri()
 	{
-		return $this->_uri;
-	}
-
-	/**
-	 *
-	 * @param string $uri 
-	 */
-	public function set_uri($uri)
-	{
-		$this->_uri = $uri;
+		return $this->_path.':'.$this->_identifier;
 	}
 
 	/**

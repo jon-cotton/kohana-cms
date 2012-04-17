@@ -12,6 +12,7 @@ class Rpa_Cms_Iterator_Filesystem_Locale extends FilterIterator
 
 	public function accept()
 	{
+		// regex pattern to match locale directories (_en-gb/_fr-fr/_en-us etc)
 		$locale_regex = '/^_[a-z]{2}-[a-z]{2}$/';
 		
 		// is the current item a directory and does the name of it match the locale regex pattern

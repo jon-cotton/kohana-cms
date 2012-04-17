@@ -17,6 +17,11 @@ abstract class Rpa_Cms_Content
 	 */
 	const CONTENT_URI_REGEX = '/cms:\/\/(.*:.*)/';
 	
+	/**
+	 * 
+	 */
+	const CONTENT_FILE_EXT = 'yml';
+	
 //==============================================================================	
 	
 	/**
@@ -299,7 +304,7 @@ abstract class Rpa_Cms_Content
 			{
 				// build the locale paths array from the filesystem (expensive)
 				$locale_paths = array();
-				$locale_it = new Rpa_Cms_Iterator_Filesystem_Locale(Cms_Content::$default_content_path);
+				$locale_it = new Cms_Iterator_Filesystem_Locale(Cms_Content::$default_content_path);
 				foreach($locale_it as $locale){
 					$locale_paths[$locale->getFilename()] = str_replace(Cms_Content::$default_content_path.'/', '', $locale->getPathName());
 				}
@@ -347,19 +352,20 @@ abstract class Rpa_Cms_Content
 		$content_paths = array();
 		$content_path = $path.DIRECTORY_SEPARATOR.$uri;
 		$locale = str_replace('_', '', basename($path));
+		$ext = Cms_Content::CONTENT_FILE_EXT;
 		
 		foreach($root_content_paths as $root_content_path)
 		{	
 			$full_content_path = $root_content_path.DIRECTORY_SEPARATOR.$content_path;
-			if(file_exists($full_content_path.'.yml'))
+			if(file_exists($full_content_path.'.'.$ext))
 			{
-				$content_paths[$current_key.'~'.$locale] = $full_content_path.'.yml';
+				$content_paths[$current_key.'~'.$locale] = $full_content_path.'.'.$ext;
 				$current_key++;
 			}
-			elseif(is_dir($full_content_path) AND file_exists($full_content_path.DIRECTORY_SEPARATOR.'index.yml'))
+			elseif(is_dir($full_content_path) AND file_exists($full_content_path.DIRECTORY_SEPARATOR.'index'.'.'.$ext))
 			{	
 				// path is a dir so serve up the index file
-				$content_paths[$current_key.'~'.$locale] = $full_content_path.DIRECTORY_SEPARATOR.'index.yml';
+				$content_paths[$current_key.'~'.$locale] = $full_content_path.DIRECTORY_SEPARATOR.'index'.'.'.$ext;
 				$current_key++;
 			}
 		}

@@ -298,7 +298,11 @@ abstract class Rpa_Cms_Content
 			else
 			{
 				// build the locale paths array from the filesystem (expensive)
-				$locale_paths = self::find_locale_paths(Cms_Content::$default_content_path);
+				$locale_paths = array();
+				$locale_it = new Rpa_Cms_Iterator_Filesystem_Locale(Cms_Content::$default_content_path);
+				foreach($locale_it as $locale){
+					$locale_paths[$locale->getFilename()] = str_replace(Cms_Content::$default_content_path.'/', '', $locale->getPathName());
+				}
 				
 				if(Cms_Content::$cache instanceOf Cache)
 				{
@@ -330,43 +334,7 @@ abstract class Rpa_Cms_Content
 	public static function get_available_locales()
 	{
 		return array_keys(Cms_Content::get_locale_paths());
-	}		
-	
-	/**
-	 *
-	 * @param type $path
-	 * @return type 
-	 */
-	private static function find_locale_paths($path)
-	{
-		$locale_regex = '/^_[a-z]{2}-[a-z]{2}$/';
-		$handle = opendir($path);
-
-		$locale_paths = array();
-
-		while(($entry = readdir($handle)) !== FALSE)
-		{
-			$entry_path = $path.DIRECTORY_SEPARATOR.$entry;
-			if(is_dir($entry_path) AND preg_match($locale_regex, $entry))
-			{
-				// this entry is a locale so add it to the array
-				$locale_paths[$entry] = $entry;
-
-				// recursively check all locale dirs to see if they contain any locales themselves
-				$sub_locale_paths = Cms_Content::find_locale_paths($entry_path);
-				
-				// prefix all paths with the current entry so they have the correct path from the content root
-				foreach($sub_locale_paths as $sub_locale => $sub_locale_path)
-				{
-					$sub_locale_paths[$sub_locale] = $entry.DIRECTORY_SEPARATOR.$sub_locale_path;
-				}	
-				
-				$locale_paths = Arr::merge($locale_paths, $sub_locale_paths);
-			}
-		}
-		
-		return $locale_paths;
-	}		
+	}	
 	
 	/**
 	 *

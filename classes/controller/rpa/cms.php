@@ -1,13 +1,31 @@
 <?php defined('SYSPATH') or die('No direct script access.');
 /**
- * Controller_Static - controller actions for serving up static views, used when
- * a view doesn't require any 'backend' processing
  *
- * @author Jon Cotton <jon@rpacode.co.uk>
- * @copyright (c) 2011 RPA Code
+ * @author Jon Cotton <joncotton123@gmail.com>
  */
 class Controller_Rpa_Cms extends Controller
 {
+	protected $_content = NULL;
+
+	public function before()
+	{
+		// get the parameters from the request
+		$content_path = $this->request->param('content', NULL);
+		
+		if($content_path !== NULL)
+		{	
+			// attempt to load the content
+			try
+			{
+				$this->_content = Cms_Content::find_all_by_uri($content_path);
+			}
+			catch(Cms_Exception_Notfound $e)
+			{
+				$this->_content = array();
+			}
+		}
+	}
+
 	/**
 	 * action_index - The default action, attempts to load the view at the path
 	 * specified by the view parameter in the URL

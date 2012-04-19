@@ -379,6 +379,27 @@ abstract class Rpa_Cms_Content
 		}
 			
 		return Arr::flatten($content_paths);
+	}
+
+	public static function factory($path, $identifier, $locale, array $data)
+	{
+		$data = Cms_Content::find_content_data_by_uri($path, $locale);
+
+		$item = Arr::path($data, $identifier);
+
+		if($item === NULL)
+		{
+			throw new Cms_Exception_Notfound($path.':'.$identifier, $locale);
+		}
+
+		$type = Arr::get($item, 'type');
+
+		if($type === NULL)
+		{
+			
+		}
+
+		$content_objects = Arr::path(Cms_Content::$_loaded_content, $locale.'.'.$uri, array());
 	}	
 
 //==============================================================================	
@@ -536,7 +557,7 @@ abstract class Rpa_Cms_Content
 		$yaml->dump_file($content_path, $content_data, 2);
 		
 		$content_cache_key = 'rpa.cms.'.Cms_Content::$locale.$path;
-		if(Cms_Content::$cache instanceOf Cache AND Cms_Content::$cache->get($content_cache_key))
+		if(Cms_Content::$cache instanceOf Cache)
 		{
 			// finally, remove any cache files
 			Cms_Content::$cache->delete_all();

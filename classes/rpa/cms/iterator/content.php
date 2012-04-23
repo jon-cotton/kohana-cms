@@ -43,18 +43,19 @@ class Rpa_Cms_Iterator_Content implements Iterator, Countable
 	{
 		foreach($this->_data as $identifier => &$item)
 		{
-			if(!is_array($item))
-			{
-			}
-
 			$type = Arr::get($item, 'type');
+			if(empty($type))
+			{
+				throw new Cms_Exception('Type property not set for item :identifier at path :path', array(':identifier' => $this->get_full_identifier($identifier), ':path' => $this->_path));
+			}	
+			
 			if(empty($type) OR $type == 'iterator' OR $type == 'text')
 			{
-				if(is_array($item))
+				if($type == 'iterator')
 				{	
 					$item = new Cms_Iterator_Content($item, $this->$_path, $this->get_full_identifier($identifier));
 				}
-				else
+				elseif($type == 'text')
 				{
 					// check to see if the content is a uri reference to other content
 					$matches = array();
@@ -62,6 +63,10 @@ class Rpa_Cms_Iterator_Content implements Iterator, Countable
 					{
 						$item = Cms_Content::find_by_uri($matches[1], $locale);
 					}
+					else
+					{
+						
+					}	
 				}	
 			}
 			else

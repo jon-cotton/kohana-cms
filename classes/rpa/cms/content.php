@@ -272,8 +272,13 @@ abstract class Rpa_Cms_Content
 				if(!is_array($content_part))
 				{
 					$content_part = array(
-						'value'  => $content_part
+						'value'	=> $content_part,
+						'type'	=> 'text'
 					);
+				}
+				elseif(!isset($content_part['type']))
+				{
+					$content_part['type'] = 'iterator'
 				}	
 				
 				// add the locale so we know which locale this content came from

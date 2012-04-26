@@ -53,8 +53,7 @@ abstract class Rpa_Cms_Content
 	 * A hash table containing all of the content that has been loaded
 	 * @var type 
 	 */
-	protected static $_loaded_content = array();
-			
+	public static $_loaded_content = array();
 
 //==============================================================================	
 	
@@ -122,51 +121,8 @@ abstract class Rpa_Cms_Content
 				// no cache, so get the content data for the uri as an array
 				$content_data = Cms_Content::find_content_data_by_uri($uri, $locale);
 
-				// instantiate the content objects from the content data
-				foreach($content_data as $identifier => $content)
-				{	
-					$type = Arr::get($content, 'type');
-					if(empty($type))
-					{
-						if(isset($content['value']))
-						{
-							// check to see if the content is a uri reference to other content
-							$matches = array();
-							if(preg_match(Cms_Content::CONTENT_URI_REGEX, $content['value'], $matches))
-							{
-								$content_objects[$identifier] = Cms_Content::find_by_uri($matches[1], $locale);
-								continue;
-							}
-							
-							// the actual value of the content is in the value element
-							$content[Cms_Content::DEFAULT_CONTENT_TYPE_FIELD] = $content['value'];
-							unset($content['value']);
-						}
-
-						// no type has been specified so use the default type
-						$content['type'] = $type = Cms_Content::DEFAULT_CONTENT_TYPE;
-					}
-
-					// attempt to find the correct class based on the type property of the content
-					$class_name = 'Cms_Content_'.str_replace(' ', '_', ucwords(str_replace('_', ' ', $type)));
-					if(!class_exists($class_name))
-					{
-						// the class derived from the type property does not exist
-						throw new Cms_Exception(
-							'attempted to instantiate content of type :type but class :class_name does not exist',
-							array(':type' => $type, ':class_name' => $class_name)
-						);
-					}	
-
-					// instatiate a new content object
-					Cms_Content::$_loaded_content[$locale][$uri][$identifier] = new $class_name($content);
-					$content_object = Cms_Content::$_loaded_content[$locale][$uri][$identifier];
-
-					$content_object->set_path($uri);
-					$content_object->set_identifier($identifier);
-
-					$content_objects[$identifier] = $content_object;
-				}
+				// instantiate the root content iterator object which will recursively instantiate all of it's children
+				$content_objects = new Cms_Iterator_Content($content_data, $uri);
 
 				if(Cms_Content::$cache instanceOf Cache)
 				{
@@ -175,6 +131,8 @@ abstract class Rpa_Cms_Content
 				}
 			}
 		}
+
+		Cms_Content::$_loaded_content[$locale][$uri] = $content_objects;
 
 		return $content_objects;
 	}
@@ -266,6 +224,7 @@ abstract class Rpa_Cms_Content
 			$key_parts = explode('~', $key);
 			$content_locale = $key_parts[1];
 
+			// TODO: THIS NEEDS TO BE RECURSIVE
 			foreach($yaml_data as &$content_part)
 			{	
 				// wrap content in an array if it isn't an array already
@@ -278,7 +237,7 @@ abstract class Rpa_Cms_Content
 				}
 				elseif(!isset($content_part['type']))
 				{
-					$content_part['type'] = 'iterator'
+					$content_part['type'] = 'iterator';
 				}	
 				
 				// add the locale so we know which locale this content came from

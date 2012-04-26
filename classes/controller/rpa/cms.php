@@ -69,10 +69,13 @@ class Controller_Rpa_Cms extends Controller
 		
 		// set up the view
 		$view = View::factory($view_path);
+
+		//print_r($contents); exit;
 		
 		// add each piece of content as a variable within the view
-		foreach($contents as $key => &$value)
+		foreach($contents as $key => $value)
 		{	
+			echo $key.' - '; print_r($value); echo '<br/>';
 			$view->bind($key, $value);
 		}
 		

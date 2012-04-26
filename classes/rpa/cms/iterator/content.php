@@ -1,6 +1,6 @@
 <?php
 
-class Rpa_Cms_Iterator_Content implements Iterator, Countable
+class Rpa_Cms_Iterator_Content implements Iterator, Countable, ArrayAccess
 {
 	/**
 	 * @var 	array 	$_data 	The array of content data
@@ -12,10 +12,15 @@ class Rpa_Cms_Iterator_Content implements Iterator, Countable
 	 */
 	protected $_identifier = NULL;
 
-	/*
+	/**
 	 * @var 	string 	$_path 	The path to the content file that cotains this content collection
 	 */
 	protected $_path = NULL;
+
+	/**
+	 *
+	 */
+	protected $_position = 0;
 
 	/**
 	 * Intitalises the content iterator object and recursively inflates
@@ -31,8 +36,9 @@ class Rpa_Cms_Iterator_Content implements Iterator, Countable
 	public function __construct(array $data, $path, $identifier = NULL) 
 	{
 		$this->_data = $data;
-		$this->$_path = $path;
+		$this->_path = $path;
 		$this->_identifier = $identifier;
+		$this->_position = 0;
 		$this->inflate();
 	}
 
@@ -49,33 +55,31 @@ class Rpa_Cms_Iterator_Content implements Iterator, Countable
 				throw new Cms_Exception('Type property not set for item :identifier at path :path', array(':identifier' => $this->get_full_identifier($identifier), ':path' => $this->_path));
 			}	
 			
-			if(empty($type) OR $type == 'iterator' OR $type == 'text')
-			{
-				if($type == 'iterator')
-				{	
-					$item = new Cms_Iterator_Content($item, $this->$_path, $this->get_full_identifier($identifier));
-				}
-				elseif($type == 'text')
-				{
-					// check to see if the content is a uri reference to other content
-					$matches = array();
-					if(preg_match(Cms_Content::CONTENT_URI_REGEX, $item, $matches))
-					{
-						$item = Cms_Content::find_by_uri($matches[1], $locale);
-					}
-					else
-					{
-						
-					}	
-				}	
+			if($type == 'iterator')
+			{	
+				$content_object = new Cms_Iterator_Content($item, $this->_path, $this->get_full_identifier($identifier));
 			}
 			else
 			{
 				$locale = Arr::get($item, 'locale', Cms_Content::$locale);
 
-				$item = Arr::path(Cms_Content::$_loaded_content, $locale.'.'.$uri.'.'.$this->get_full_identifier($identifier));
+				if($type == 'text')
+				{
+					$value = Arr::get($item, 'value');
+					$item['text'] = Arr::get($item, 'text', $value);
 
-				if(!$item instanceOf Cms_Content)
+					// check to see if the content is a uri reference to other content
+					$matches = array();
+					if(preg_match(Cms_Content::CONTENT_URI_REGEX, $item['text'], $matches))
+					{
+						$item = Cms_Content::find_by_uri($matches[1], $locale);
+						continue;
+					}
+				}
+
+				$content_object = Arr::path(Cms_Content::$_loaded_content, $locale.'.'.$this->_path.'.'.$this->get_full_identifier($identifier));
+
+				if(!$content_object instanceOf Cms_Content)
 				{	
 					// attempt to find the correct class based on the type property of the content
 					$class_name = 'Cms_Content_'.str_replace(' ', '_', ucwords(str_replace('_', ' ', $type)));
@@ -89,13 +93,17 @@ class Rpa_Cms_Iterator_Content implements Iterator, Countable
 					}
 
 					// instatiate a new content object
-					Cms_Content::$_loaded_content[$locale][$uri][$identifier] = new $class_name($content);
-					$item = Cms_Content::$_loaded_content[$locale][$uri][$identifier];
+					Cms_Content::$_loaded_content[$locale][$this->_path][$this->get_full_identifier($identifier)] = new $class_name($item);
+					$content_object = Cms_Content::$_loaded_content[$locale][$this->_path][$this->get_full_identifier($identifier)];
 
-					$item->set_path($this->_path);
-					$item->set_identifier($this->get_full_identifier($identifier));
+					//$content_object = new $class_name($item);
+
+					$content_object->set_path($this->_path);
+					$content_object->set_identifier($this->get_full_identifier($identifier));	
 				}
-			}	
+			}
+
+			$item = $content_object;	
 		}		
 	}
 
@@ -103,12 +111,64 @@ class Rpa_Cms_Iterator_Content implements Iterator, Countable
 	{
 		$full_identifier = $identifier;
 
-		if($this->_identifier_prefix !== NULL)
+		if($this->_identifier !== NULL)
 		{
 			$full_identifier = $this->_identifier.'.'.$full_identifier;
 		}	
 
 		return $full_identifier;
+	}
+
+	public function rewind()
+	{
+		$this->_position = 0;
+	}
+
+	public function current()
+	{	
+		return $this->_data[$this->key()];
+	}
+
+	public function key()
+	{
+		$keys = array_keys($this->_data);
+		return $keys[$this->_position];
+	}
+
+	public function next()
+	{
+		$this->_position++;
+	}
+
+	public function valid()
+	{
+		$keys = array_keys($this->_data);
+		return isset($keys[$this->_position]);
+	}
+
+	public function count()
+	{
+		return count($this->_data);
+	}
+
+	public function offsetExists($offset)
+	{
+		return array_key_exists($offset, $this->_data);
+	}
+
+	public function offsetGet($offset)
+	{
+		return $this->_data[$offset];
+	}
+
+	public function offsetSet($offset, $value)
+	{
+		$this->_data[$offset] = $value;
+	}
+
+	public function offsetUnset($offset)
+	{
+		unset($this->_data[$offset]);
 	}
 
 }
